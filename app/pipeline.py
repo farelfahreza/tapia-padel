@@ -274,7 +274,11 @@ class Pipeline:
                 exclude_dedup_key=listing.required_dedup_key,
             )
             economics = compute_economics(
-                listing.price_eur, estimate.estimated_resale_eur, self.config.fees
+                listing.price_eur,
+                estimate.estimated_resale_eur,
+                self.config.fees,
+                # Shipping I pay depends on where the racket ships from.
+                location=listing.location,
             )
             opportunity = self.scorer.score(
                 listing, estimate, economics, stats.get(model_key)

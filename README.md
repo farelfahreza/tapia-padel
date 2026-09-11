@@ -14,7 +14,7 @@ posted by someone who wants a quick sale. Those are rarer and thinner than
 cross-platform gaps, so the system is deliberately conservative:
 
 * profit is computed net of buy-side **and** sell-side costs, never as a raw
-  price gap;
+  price gap (see *Fees* below);
 * observed prices are **asking** prices, so they are haircut by a configurable
   realization factor before being called a resale estimate;
 * every estimate carries the number of observations behind it, and the whole
@@ -100,11 +100,11 @@ the collection boundary - a listing that fails it never reaches pricing.
 | Component | Weight | Based on |
 |---|---|---|
 | price advantage | 35 | how far under the typical Vinted price for this model+condition |
-| profit | 25 | net profit and ROI after fees, whichever is worse |
-| condition | 10 | Vinted condition level |
+| ROI | 25 | ROI after fees, held back by the absolute profit |
+| condition | 15 | Vinted condition level |
 | demand | 10 | how often the model is listed (proxy) |
 | liquidity | 10 | listings that vanished after being seen more than once (proxy for sales, **not** confirmed sales) |
-| location | 10 | pickup feasibility against `PREFERRED_LOCATIONS` |
+| location | 5 | `PREFERRED_LOCATIONS` match |
 
 The sum is multiplied by the estimate's confidence factor (observation count,
 observation spread, and a penalty for a borrowed-condition estimate), then
@@ -117,6 +117,25 @@ capped:
 Every component, the multiplier and every cap are stored in
 `opportunities.score_breakdown` and printed in the Telegram alert, so any score
 can be explained after the fact.
+
+## Fees
+
+How Vinted works today, and how the tool models it:
+
+* **Buy side** - the buyer pays. I pay the listing price, the **5%** buyer
+  protection fee, and the shipping. Shipping depends on where the racket ships
+  from, so `BUY_SHIPPING_EUR` is the default and `BUY_SHIPPING_BY_LOCATION`
+  holds `fragment:amount` overrides matched against the listing's location
+  (`corse:9.00,belgique:8.00`).
+* **Sell side** - nothing comes off the top. Vinted charges the seller no fee,
+  and my buyer pays the shipping on the resale, so the only deduction is my own
+  `PACKAGING_COST_EUR` (set it to 0 if you reuse the box it arrived in).
+
+The 5% is therefore counted exactly once, on what I pay - never again on what I
+receive. `SELLER_FEE_PCT`, `SELLER_FEE_FIXED_EUR` and `SELL_SHIPPING_COST_EUR`
+all default to 0 but still exist and are still tested: a marketplace
+introducing a seller fee is precisely the change that would otherwise wreck
+every margin the tool reports without anyone noticing.
 
 ## Notification policy: two thresholds
 

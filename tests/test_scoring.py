@@ -33,7 +33,7 @@ def test_score_is_fully_decomposable():
     names = [component.name for component in opportunity.breakdown.components]
     assert names == [
         "price_advantage",
-        "profit",
+        "roi",
         "condition",
         "demand",
         "liquidity",

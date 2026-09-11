@@ -42,6 +42,17 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
+def _env_pairs(name: str) -> tuple[tuple[str, float], ...]:
+    """Parse "paris:3.5,corse:9" into (("paris", 3.5), ("corse", 9.0))."""
+    pairs: list[tuple[str, float]] = []
+    for chunk in _env_list(name):
+        key, separator, value = chunk.partition(":")
+        if not separator:
+            raise ValueError(f"{name} entries must look like 'location:amount', got {chunk!r}")
+        pairs.append((key.strip(), float(value)))
+    return tuple(pairs)
+
+
 def _env_list(name: str, default: Sequence[str] = ()) -> list[str]:
     raw = _env(name)
     if not raw:
@@ -56,14 +67,29 @@ class FeeConfig:
     Buying and reselling happen on the same platform, so it is easy to either
     double-count a fee or forget one entirely. Keeping the two sides apart
     makes it obvious which cost belongs where.
+
+    As Vinted works today: the BUYER pays the 5% buyer protection fee and the
+    shipping, on both legs. So I pay them when I buy, and my own buyer pays
+    them when I resell - which means the sell side takes nothing off the top.
+    The seller-side parameters default to zero but still exist, because
+    "the marketplace takes nothing" is a fact about today, not a law.
     """
 
     # What I pay on top of the listing price when buying.
     buyer_protection_pct: float = 0.05
-    buyer_protection_fixed_eur: float = 0.70
-    buy_shipping_eur: float = 4.50
+    #: Any fixed component of the buyer protection fee. Zero today: the fee is
+    #: a straight 5%.
+    buyer_protection_fixed_eur: float = 0.0
+    #: Default shipping I pay to receive a racket, when nothing more specific
+    #: matches. Shipping depends on where it ships from, so see below.
+    buy_shipping_eur: float = 5.00
+    #: Shipping by origin: ("location fragment", cost) pairs, first match wins.
+    #: The fragment is matched against the listing's location, normalized.
+    buy_shipping_by_location: tuple[tuple[str, float], ...] = ()
+    #: My own packaging, deducted from the resale. Not a Vinted fee.
     packaging_cost_eur: float = 1.00
-    # What Vinted takes out of the resale before it reaches me.
+    # What Vinted takes out of the resale before it reaches me: nothing today.
+    # The buyer pays the fee and the shipping on the resale leg too.
     seller_fee_pct: float = 0.0
     seller_fee_fixed_eur: float = 0.0
     sell_shipping_cost_eur: float = 0.0
@@ -72,8 +98,9 @@ class FeeConfig:
     def from_env() -> "FeeConfig":
         return FeeConfig(
             buyer_protection_pct=_env_float("BUYER_PROTECTION_PCT", 0.05),
-            buyer_protection_fixed_eur=_env_float("BUYER_PROTECTION_FIXED_EUR", 0.70),
-            buy_shipping_eur=_env_float("BUY_SHIPPING_EUR", 4.50),
+            buyer_protection_fixed_eur=_env_float("BUYER_PROTECTION_FIXED_EUR", 0.0),
+            buy_shipping_eur=_env_float("BUY_SHIPPING_EUR", 5.00),
+            buy_shipping_by_location=_env_pairs("BUY_SHIPPING_BY_LOCATION"),
             packaging_cost_eur=_env_float("PACKAGING_COST_EUR", 1.00),
             seller_fee_pct=_env_float("SELLER_FEE_PCT", 0.0),
             seller_fee_fixed_eur=_env_float("SELLER_FEE_FIXED_EUR", 0.0),
@@ -106,11 +133,11 @@ class PricingConfig:
 @dataclass(frozen=True)
 class ScoringConfig:
     weight_price_advantage: float = 35.0
-    weight_profit: float = 25.0
-    weight_condition: float = 10.0
+    weight_roi: float = 25.0
+    weight_condition: float = 15.0
     weight_demand: float = 10.0
     weight_liquidity: float = 10.0
-    weight_location: float = 10.0
+    weight_location: float = 5.0
 
     target_discount: float = 0.35
     target_roi: float = 0.40
@@ -133,7 +160,7 @@ class ScoringConfig:
     def total_weight(self) -> float:
         return (
             self.weight_price_advantage
-            + self.weight_profit
+            + self.weight_roi
             + self.weight_condition
             + self.weight_demand
             + self.weight_liquidity
@@ -144,11 +171,11 @@ class ScoringConfig:
     def from_env() -> "ScoringConfig":
         return ScoringConfig(
             weight_price_advantage=_env_float("WEIGHT_PRICE_ADVANTAGE", 35.0),
-            weight_profit=_env_float("WEIGHT_PROFIT", 25.0),
-            weight_condition=_env_float("WEIGHT_CONDITION", 10.0),
+            weight_roi=_env_float("WEIGHT_ROI", 25.0),
+            weight_condition=_env_float("WEIGHT_CONDITION", 15.0),
             weight_demand=_env_float("WEIGHT_DEMAND", 10.0),
             weight_liquidity=_env_float("WEIGHT_LIQUIDITY", 10.0),
-            weight_location=_env_float("WEIGHT_LOCATION", 10.0),
+            weight_location=_env_float("WEIGHT_LOCATION", 5.0),
             target_discount=_env_float("TARGET_DISCOUNT", 0.35),
             target_roi=_env_float("TARGET_ROI", 0.40),
             target_profit_eur=_env_float("TARGET_PROFIT_EUR", 40.0),

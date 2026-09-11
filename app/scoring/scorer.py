@@ -51,7 +51,7 @@ class OpportunityScorer:
         stats = stats or ModelStats(model_key=listing.model_key or "")
         components = [
             self._price_advantage(listing, estimate),
-            self._profit(economics),
+            self._roi(economics),
             self._condition(listing),
             self._demand(stats),
             self._liquidity(stats),
@@ -126,22 +126,23 @@ class OpportunityScorer:
             f"{self.config.target_discount:.0%} below)",
         )
 
-    def _profit(self, economics: Economics) -> ScoreComponent:
-        weight = self.config.weight_profit
+    def _roi(self, economics: Economics) -> ScoreComponent:
+        weight = self.config.weight_roi
         profit, roi = economics.expected_profit_eur, economics.roi
         if profit is None or roi is None:
-            return self._component("profit", weight, 0.0, "no estimate, so no expected margin")
-        # min() of the two targets: a high ROI on a EUR 5 profit is not a deal,
-        # and neither is a fat absolute profit on a huge outlay.
+            return self._component("roi", weight, 0.0, "no estimate, so no expected margin")
+        # Scored on ROI, but held back by the absolute profit: a 60% return on
+        # a EUR 8 margin is not worth the handling, and this is the only place
+        # that says so before the hard caps kick in.
         raw = _clamp01(
             min(roi / self.config.target_roi, profit / self.config.target_profit_eur)
         )
         return self._component(
-            "profit",
+            "roi",
             weight,
             raw,
-            f"net profit EUR {profit:.0f} at {roi:.0%} ROI after fees "
-            f"(targets: EUR {self.config.target_profit_eur:.0f} / {self.config.target_roi:.0%})",
+            f"{roi:.0%} ROI on EUR {profit:.0f} net profit after fees "
+            f"(targets: {self.config.target_roi:.0%} ROI / EUR {self.config.target_profit_eur:.0f})",
         )
 
     def _condition(self, listing: Listing) -> ScoreComponent:
