@@ -4,7 +4,7 @@
              shipping, which depends on where the racket ships from.
   Sell side  Vinted takes no seller fee from a private seller, and my buyer
              pays the shipping. What I net is the sale price, minus only the
-             costs I actually absorb (packaging).
+             costs I absorb myself: cleaning the racket up and packing it.
 
 Every one of those is still a configurable parameter rather than a constant:
 "Vinted takes nothing from the seller" is true today, and is exactly the kind
@@ -49,13 +49,15 @@ def buy_total_cost(
 def net_sale_proceeds(resale_price_eur: float, fees: FeeConfig) -> float:
     """Everything I keep when it resells.
 
-    No seller fee and no shipping on this side - the buyer pays both. Only my
-    own packaging cost comes out of the sale.
+    No seller fee and no shipping on this side - the buyer pays both. What
+    comes out is what I spend myself to put the racket back on sale: cleaning
+    it up and packing it.
     """
     return round(
         resale_price_eur * (1.0 - fees.seller_fee_pct)
         - fees.seller_fee_fixed_eur
         - fees.sell_shipping_cost_eur
+        - fees.cleanup_cost_eur
         - fees.packaging_cost_eur,
         2,
     )

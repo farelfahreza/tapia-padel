@@ -3,7 +3,8 @@
 How Vinted works today, and what these tests pin down:
   * the BUYER pays the 5% protection fee and the shipping - on both legs, so
     I pay them when I buy and my own buyer pays them when I resell;
-  * Vinted takes no seller fee, so nothing comes off the top of the resale;
+  * Vinted takes no seller fee, so the only deductions on the resale are the
+    ones I pay myself: cleaning the racket up and packing it;
   * shipping depends on where the racket ships from.
 
 The seller-side parameters still exist and are still tested, because a
@@ -26,6 +27,7 @@ VINTED = FeeConfig(
     buyer_protection_fixed_eur=0.0,
     buy_shipping_eur=5.00,
     buy_shipping_by_location=(("corse", 9.00), ("belgique", 8.00)),
+    cleanup_cost_eur=2.00,
     packaging_cost_eur=1.00,
 )
 
@@ -36,8 +38,14 @@ def test_buy_side_is_price_plus_five_percent_plus_shipping():
 
 
 def test_sell_side_keeps_the_sale_price_minus_only_my_own_costs():
-    # No seller fee and no shipping on this leg - my buyer pays both.
-    assert net_sale_proceeds(150.0, VINTED) == 149.00
+    # No seller fee and no shipping on this leg - my buyer pays both. What
+    # comes out is the clean-up and the packaging: 150 - 2.00 - 1.00.
+    assert net_sale_proceeds(150.0, VINTED) == 147.00
+
+
+def test_clean_up_and_packaging_both_come_out_of_the_resale():
+    bare = FeeConfig(cleanup_cost_eur=0.0, packaging_cost_eur=0.0)
+    assert net_sale_proceeds(150.0, bare) - net_sale_proceeds(150.0, VINTED) == 3.00
 
 
 def test_shipping_depends_on_where_the_racket_ships_from():
@@ -62,13 +70,13 @@ def test_a_costlier_origin_eats_into_the_margin():
 
 def test_profit_is_net_of_both_sides_not_the_raw_gap():
     economics = compute_economics(100.0, 150.0, VINTED)
-    assert economics.expected_profit_eur == pytest.approx(149.00 - 110.00, abs=0.01)
+    assert economics.expected_profit_eur == pytest.approx(147.00 - 110.00, abs=0.01)
     assert economics.expected_profit_eur < 150.0 - 100.0
 
 
 def test_roi_is_over_total_outlay_not_over_the_sticker_price():
     economics = compute_economics(100.0, 150.0, VINTED)
-    assert economics.roi == pytest.approx(39.0 / 110.0, abs=0.0001)
+    assert economics.roi == pytest.approx(37.0 / 110.0, abs=0.0001)
     # The flattering version would be 50/100 = 50%.
     assert economics.roi < 0.50
 
@@ -89,6 +97,7 @@ def test_zero_everything_reduces_to_the_raw_gap():
         buyer_protection_pct=0.0,
         buyer_protection_fixed_eur=0.0,
         buy_shipping_eur=0.0,
+        cleanup_cost_eur=0.0,
         packaging_cost_eur=0.0,
     )
     economics = compute_economics(100.0, 150.0, free)
@@ -106,11 +115,12 @@ def test_a_seller_fee_would_be_honoured_if_vinted_ever_introduced_one():
     future = FeeConfig(
         buyer_protection_pct=0.05,
         buy_shipping_eur=5.00,
+        cleanup_cost_eur=2.00,
         packaging_cost_eur=1.00,
         seller_fee_pct=0.10,
         seller_fee_fixed_eur=0.50,
     )
-    assert net_sale_proceeds(150.0, future) == pytest.approx(150 * 0.9 - 0.5 - 1.0)
+    assert net_sale_proceeds(150.0, future) == pytest.approx(150 * 0.9 - 0.5 - 2.0 - 1.0)
     assert compute_economics(100.0, 150.0, future).expected_profit_eur < compute_economics(
         100.0, 150.0, VINTED
     ).expected_profit_eur

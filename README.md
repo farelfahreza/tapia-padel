@@ -127,9 +127,12 @@ How Vinted works today, and how the tool models it:
   from, so `BUY_SHIPPING_EUR` is the default and `BUY_SHIPPING_BY_LOCATION`
   holds `fragment:amount` overrides matched against the listing's location
   (`corse:9.00,belgique:8.00`).
-* **Sell side** - nothing comes off the top. Vinted charges the seller no fee,
-  and my buyer pays the shipping on the resale, so the only deduction is my own
-  `PACKAGING_COST_EUR` (set it to 0 if you reuse the box it arrived in).
+* **Sell side** - Vinted takes nothing off the top. It charges the seller no
+  fee and my buyer pays the shipping on the resale, so the only deductions are
+  what I spend myself to put the racket back on sale: `CLEANUP_COST_EUR` and
+  `PACKAGING_COST_EUR`. Neither is a Vinted fee - set packaging to 0 if you
+  reuse the box it arrived in, and set clean-up to what a clean-up really
+  costs you.
 
 The 5% is therefore counted exactly once, on what I pay - never again on what I
 receive. `SELLER_FEE_PCT`, `SELLER_FEE_FIXED_EUR` and `SELL_SHIPPING_COST_EUR`

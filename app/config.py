@@ -86,8 +86,10 @@ class FeeConfig:
     #: Shipping by origin: ("location fragment", cost) pairs, first match wins.
     #: The fragment is matched against the listing's location, normalized.
     buy_shipping_by_location: tuple[tuple[str, float], ...] = ()
-    #: My own packaging, deducted from the resale. Not a Vinted fee.
+    #: My own costs of getting the racket back on sale, deducted from the
+    #: resale. Neither is a Vinted fee.
     packaging_cost_eur: float = 1.00
+    cleanup_cost_eur: float = 2.00
     # What Vinted takes out of the resale before it reaches me: nothing today.
     # The buyer pays the fee and the shipping on the resale leg too.
     seller_fee_pct: float = 0.0
@@ -102,6 +104,7 @@ class FeeConfig:
             buy_shipping_eur=_env_float("BUY_SHIPPING_EUR", 5.00),
             buy_shipping_by_location=_env_pairs("BUY_SHIPPING_BY_LOCATION"),
             packaging_cost_eur=_env_float("PACKAGING_COST_EUR", 1.00),
+            cleanup_cost_eur=_env_float("CLEANUP_COST_EUR", 2.00),
             seller_fee_pct=_env_float("SELLER_FEE_PCT", 0.0),
             seller_fee_fixed_eur=_env_float("SELLER_FEE_FIXED_EUR", 0.0),
             sell_shipping_cost_eur=_env_float("SELL_SHIPPING_COST_EUR", 0.0),
