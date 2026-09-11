@@ -203,15 +203,67 @@ database:
 TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/padel_test pytest
 ```
 
+## The first real run against Vinted
+
+The collector has never contacted Vinted. When you are ready, do it in this
+order rather than all at once - the point is to confirm the response shape and
+the condition mapping before the tool is allowed to interrupt you.
+
+1. **Get a session cookie.** Log into vinted.fr in a browser, open the network
+   tab, find any `/api/v2/catalog/items` request and copy its `Cookie` header.
+   Put it in `VINTED_SESSION_COOKIE`. It is a credential: it goes in the
+   environment, never in a file, a commit or a chat message. It expires, and
+   when it does the run stops with a clear error rather than retrying.
+2. **Set an honest `HTTP_USER_AGENT`** with a real contact address.
+3. **One quiet browse run.** `VINTED_BROWSE_MAX_PAGES=1`,
+   `VINTED_REQUESTS_PER_MINUTE=6`, `MAX_NOTIFICATIONS_PER_RUN=0`. This
+   collects, prices and scores, but sends nothing.
+
+   ```bash
+   MAX_NOTIFICATIONS_PER_RUN=0 VINTED_BROWSE_MAX_PAGES=1 python -m app.main
+   ```
+4. **Check three things** in the logs and the database:
+   * `collection complete` reports a sensible `parsed` count and a near-zero
+     `skipped` - a high `skipped` means the response shape has moved and
+     `app/collection/vinted.py` needs a look;
+   * `SELECT condition, count(*) FROM listings GROUP BY 1` shows only the three
+     accepted levels, and the counts are not suspiciously lopsided - that is
+     the check on whether the `VINTED_STATUS_IDS` query filter is right;
+   * `SELECT model_key, count(*) FROM listings GROUP BY 1 ORDER BY 2 DESC`
+     looks like real racket models, not mush - that is the check on the name
+     normalization.
+5. **Let it run quietly for a while.** The price database starts empty, so
+   early runs correctly find nothing: the logs say
+   `listings without a usable resale estimate ... not a failure`. Expect days,
+   not hours, before a model has enough observations to be trusted.
+6. **Then turn alerts on** by restoring `MAX_NOTIFICATIONS_PER_RUN`.
+
+If Vinted answers 401, 403 or 429 at any point, the run stops by design.
+Refresh the cookie (401/403) or lower `VINTED_REQUESTS_PER_MINUTE` and run less
+often (429). Do not work around it.
+
 ## Deployment (Railway)
 
 Each run is a single-shot process: it connects, collects, evaluates, notifies
 and exits. Nothing is scheduled inside the process, and **nothing that must
 survive between runs is written to local disk** - all state (dedup, price
 observations, watchlist, Telegram offset) lives in Postgres. That makes it safe
-to run as a Railway Cron Job with the command `python -m app.main`, with a
-Postgres plugin attached and the variables from `.env.example` set on the
-service.
+to run as a Railway Cron Job.
+
+`railway.json` sets the start command (`python -m app.main`), an hourly
+schedule at minute 17, and `restartPolicyType: NEVER` - a cron job that exits
+must not be restarted as though it had crashed. Attach a Postgres plugin
+(`DATABASE_URL` is then provided for you) and set the variables from
+`.env.example` on the service.
+
+Exit codes, so a failed run is legible from the Railway dashboard:
+
+| Code | Meaning |
+|---|---|
+| 0 | ran cleanly |
+| 1 | unexpected exception - the traceback is in the logs, and nothing was committed |
+| 2 | no usable Vinted session cookie |
+| 3 | ran, but the source errored or asked us to back off |
 
 ## Deliberately not built yet
 
